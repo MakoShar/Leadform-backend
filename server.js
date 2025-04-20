@@ -12,12 +12,18 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/leadminnow';
+const PORT = process.env.PORT || 3001;
+
+mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
-.then(() => console.log('Connected to MongoDB Atlas'))
-.catch(err => console.error('MongoDB connection error:', err));
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Exit if database connection fails
+});
 
 // Lead Schema
 const leadSchema = new mongoose.Schema({
@@ -31,6 +37,11 @@ const leadSchema = new mongoose.Schema({
 
 const Lead = mongoose.model('Lead', leadSchema);
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
 // API Routes
 app.post('/api/leads', async (req, res) => {
     try {
@@ -38,6 +49,7 @@ app.post('/api/leads', async (req, res) => {
         await lead.save();
         res.status(201).json({ message: 'Lead saved successfully', lead });
     } catch (error) {
+        console.error('Error saving lead:', error);
         res.status(500).json({ error: 'Error saving lead', details: error.message });
     }
 });
@@ -47,12 +59,18 @@ app.get('/api/leads', async (req, res) => {
         const leads = await Lead.find().sort({ createdAt: -1 });
         res.json(leads);
     } catch (error) {
+        console.error('Error fetching leads:', error);
         res.status(500).json({ error: 'Error fetching leads', details: error.message });
     }
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!' });
+});
+
 // Start server
-const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 }); 
